@@ -1,1 +1,3 @@
-echo -e "flask\npandas\nnumpy" > ~/dquote/requirements.txt
+flask
+pandas
+numpy
