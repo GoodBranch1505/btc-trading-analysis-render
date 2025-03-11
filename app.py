@@ -1,9 +1,9 @@
-from flask import Flask, request
+from flask import Flask
 app = Flask(__name__)
 
-@app.route('/analyze', methods=['POST'])
-def analyze():
-    return {"message": "Test OK"}
+@app.route('/')
+def home():
+    return "Hello, Heroku!"
 
 if __name__ == '__main__':
     import os
