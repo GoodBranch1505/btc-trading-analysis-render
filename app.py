@@ -10,7 +10,6 @@ def analyze():
     data = request.json
     data_store.append(data)
     df = pd.DataFrame(data_store[-14:])
-
     if len(df) >= 14:
         df['sma_short'] = df['price'].rolling(window=5).mean()
         df['sma_long'] = df['price'].rolling(window=14).mean()
@@ -20,7 +19,6 @@ def analyze():
         rs = gain / loss
         df['rsi'] = 100 - (100 / (1 + rs))
         df['sentiment'] = df['btc_count'].apply(lambda x: 0.5 if x > 7 else -0.5 if x < 3 else 0)
-
         latest = df.iloc[-1]
         if latest['sma_short'] > latest['sma_long'] and latest['rsi'] < 70 and latest['sentiment'] > 0:
             signal = "買い"
