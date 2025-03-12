@@ -30,8 +30,10 @@ def analyze():
         buy_score = stats.norm.cdf((latest['trend'] / 1000000) + (70 - latest['rsi']) / 100 + latest['sentiment'])
         sell_score = stats.norm.cdf((-latest['trend'] / 1000000) + (latest['rsi'] - 30) / 100 - latest['sentiment'])
         signal = "買い" if buy_score > 0.7 else "売り" if sell_score > 0.7 else "ホールド"
+        signal_prob = buy_score if signal == "買い" else sell_score if signal == "売り" else max(1 - buy_score, 1 - sell_score)
         return {
             'signal': signal,
+            'signal_prob': round(signal_prob, 2),
             'buy_prob': round(buy_score, 2),
             'sell_prob': round(sell_score, 2),
             'price': latest['price'],
