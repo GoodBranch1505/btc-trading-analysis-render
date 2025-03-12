@@ -2,43 +2,45 @@ from flask import Flask, request
 import pandas as pd
 import numpy as np
 from scipy import stats
+import mysql.connector
 
 app = Flask(__name__)
-data_store = []
+
+def get_db_connection():
+    return mysql.connector.connect(
+        host="xs409588.xsrv.jp",  # Xサーバーのホスト
+        user="xs409588_user",
+        password="gb20141216",
+        database="xs409588_btc"
+    )
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
     data = request.json
-    data_store.append(data)
-    df = pd.DataFrame(data_store[-288:])  # 24時間分（5分×288）
+    conn = get_db_connection()
+    conn.cursor().execute("INSERT INTO btc_data (price, timestamp, btc_count) VALUES (%s, %s, %s)",
+                          (data['price'], data['timestamp'], data['btc_count']))
+    conn.commit()
+    df = pd.read_sql("SELECT * FROM btc_data ORDER BY timestamp DESC LIMIT 288", conn)
+    conn.close()
 
-    if len(df) >= 14:  # 最低限のデータ
-        # トレンド
-        df['sma_short'] = df['price'].rolling(window=6).mean()  # 30分
-        df['sma_long'] = df['price'].rolling(window=24).mean()  # 2時間
+    if len(df) >= 14:
+        df['sma_short'] = df['price'].rolling(window=6).mean()
+        df['sma_long'] = df['price'].rolling(window=24).mean()
         df['trend'] = df['sma_short'] - df['sma_long']
-
-        # シーズン性（簡易: 1時間周期の残差）
         df['hour'] = pd.to_datetime(df['timestamp'], unit='s').dt.hour
         seasonal = df.groupby('hour')['price'].transform('mean')
         df['season_adj'] = df['price'] - seasonal
-
-        # 外的要因（btc_countの影響を除去）
         df['sentiment'] = df['btc_count'].apply(lambda x: 0.5 if x > 7 else -0.5 if x < 3 else 0)
-        df['price_adj'] = df['season_adj'] - (df['sentiment'] * 100000)  # 仮の影響係数
-
-        # RSI
+        df['price_adj'] = df['season_adj'] - (df['sentiment'] * 100000)
         delta = df['price_adj'].diff()
         gain = delta.where(delta > 0, 0).rolling(window=14).mean()
         loss = -delta.where(delta < 0, 0).rolling(window=14).mean()
         rs = gain / loss
         df['rsi'] = 100 - (100 / (1 + rs))
-
-        # 確率計算（簡易ロジスティックモデル）
         latest = df.iloc[-1]
         buy_score = stats.norm.cdf((latest['trend'] / 1000000) + (70 - latest['rsi']) / 100 + latest['sentiment'])
         sell_score = stats.norm.cdf((-latest['trend'] / 1000000) + (latest['rsi'] - 30) / 100 - latest['sentiment'])
-
         signal = "買い" if buy_score > 0.7 else "売り" if sell_score > 0.7 else "ホールド"
         return {
             'signal': signal,
