@@ -32,25 +32,33 @@ def analyze():
         signal = "買い" if buy_score > 0.7 else "売り" if sell_score > 0.7 else "ホールド"
         signal_prob = buy_score if signal == "買い" else sell_score if signal == "売り" else max(1 - buy_score, 1 - sell_score)
 
-        past_signal_eval = "データ不足"
+        prev_signal_eval = "データ不足"
+        success = 0
+        failure = 0
+        profit_loss = None
         if len(df) >= 2:
-            latest_time = int(latest['timestamp'])
-            for i in range(len(df)-2, -1, -1):  # 最新の次から遡る
-                past = df.iloc[i]
-                past_time = int(past['timestamp'])
-                if latest_time - past_time >= 14 * 60 and latest_time - past_time <= 16 * 60:
-                    past_price = past['price']
-                    curr_price = latest['price']
-                    past_buy_score = stats.norm.cdf((past['trend'] / 1000000) + (70 - past['rsi']) / 100 + past['sentiment'])
-                    past_sell_score = stats.norm.cdf((-past['trend'] / 1000000) + (past['rsi'] - 30) / 100 - past['sentiment'])
-                    past_signal = "買い" if past_buy_score > 0.7 else "売り" if past_sell_score > 0.7 else "ホールド"
-                    if past_signal == "買い":
-                        past_signal_eval = "成功" if curr_price > past_price else "失敗"
-                    elif past_signal == "売り":
-                        past_signal_eval = "成功" if curr_price < past_price else "失敗"
-                    else:
-                        past_signal_eval = "ホールド（評価なし）"
-                    break
+            prev = df.iloc[-2]
+            prev_price = prev['price']
+            curr_price = latest['price']
+            prev_buy_score = stats.norm.cdf((prev['trend'] / 1000000) + (70 - prev['rsi']) / 100 + prev['sentiment'])
+            prev_sell_score = stats.norm.cdf((-prev['trend'] / 1000000) + (prev['rsi'] - 30) / 100 - prev['sentiment'])
+            prev_signal = "買い" if prev_buy_score > 0.7 else "売り" if prev_sell_score > 0.7 else "ホールド"
+            
+            if prev_signal == "買い":
+                prev_signal_eval = "成功" if curr_price > prev_price else "失敗"
+                success = 1 if curr_price > prev_price else 0
+                failure = 1 if curr_price <= prev_price else 0
+                profit_loss = curr_price - prev_price  # 買い: 価格差
+            elif prev_signal == "売り":
+                prev_signal_eval = "成功" if curr_price < prev_price else "失敗"
+                success = 1 if curr_price < prev_price else 0
+                failure = 1 if curr_price >= prev_price else 0
+                profit_loss = prev_price - curr_price  # 売り: 逆の価格差
+            else:  # ホールド
+                prev_signal_eval = "成功" if curr_price > prev_price else "失敗" if curr_price < prev_price else "中立"
+                success = 1 if curr_price > prev_price else 0
+                failure = 1 if curr_price < prev_price else 0
+                profit_loss = curr_price - prev_price  # ホールド: 価格変動をそのまま
 
         return {
             'signal': signal,
@@ -61,7 +69,10 @@ def analyze():
             'rsi': latest['rsi'],
             'trend': latest['trend'],
             'sentiment': latest['sentiment'],
-            'past_signal_eval': past_signal_eval
+            'prev_signal_eval': prev_signal_eval,
+            'success': success,
+            'failure': failure,
+            'profit_loss': profit_loss
         }
     return {'signal': 'データ不足'}
 
