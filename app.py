@@ -2,27 +2,15 @@ from flask import Flask, request
 import pandas as pd
 import numpy as np
 from scipy import stats
-import mysql.connector
 
 app = Flask(__name__)
-
-def get_db_connection():
-    return mysql.connector.connect(
-        host="xs409588.xsrv.jp",  # Xサーバーのホスト
-        user="xs409588_user",
-        password="gb20141216",
-        database="xs409588_btc"
-    )
+data_store = []
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
     data = request.json
-    conn = get_db_connection()
-    conn.cursor().execute("INSERT INTO btc_data (price, timestamp, btc_count) VALUES (%s, %s, %s)",
-                          (data['price'], data['timestamp'], data['btc_count']))
-    conn.commit()
-    df = pd.read_sql("SELECT * FROM btc_data ORDER BY timestamp DESC LIMIT 288", conn)
-    conn.close()
+    data_store.append(data)
+    df = pd.DataFrame(data_store[-288:])
 
     if len(df) >= 14:
         df['sma_short'] = df['price'].rolling(window=6).mean()
