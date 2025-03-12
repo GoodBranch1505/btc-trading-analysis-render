@@ -31,6 +31,26 @@ def analyze():
         sell_score = stats.norm.cdf((-latest['trend'] / 1000000) + (latest['rsi'] - 30) / 100 - latest['sentiment'])
         signal = "買い" if buy_score > 0.7 else "売り" if sell_score > 0.7 else "ホールド"
         signal_prob = buy_score if signal == "買い" else sell_score if signal == "売り" else max(1 - buy_score, 1 - sell_score)
+
+        # 15分前の評価
+        past_signal_eval = "評価なし"
+        if len(df) >= 15:  # 15分前データが必要
+            past = df.iloc[-2]  # 15分前（仮に15分間隔と仮定）
+            past_time = int(past['timestamp'])
+            curr_time = int(latest['timestamp'])
+            if curr_time - past_time >= 15 * 60:  # 15分差確認
+                past_price = past['price']
+                curr_price = latest['price']
+                past_buy_score = stats.norm.cdf((past['trend'] / 1000000) + (70 - past['rsi']) / 100 + past['sentiment'])
+                past_sell_score = stats.norm.cdf((-past['trend'] / 1000000) + (past['rsi'] - 30) / 100 - past['sentiment'])
+                past_signal = "買い" if past_buy_score > 0.7 else "売り" if past_sell_score > 0.7 else "ホールド"
+                if past_signal == "買い":
+                    past_signal_eval = "成功" if curr_price > past_price else "失敗"
+                elif past_signal == "売り":
+                    past_signal_eval = "成功" if curr_price < past_price else "失敗"
+                else:
+                    past_signal_eval = "ホールド（評価なし）"
+
         return {
             'signal': signal,
             'signal_prob': round(signal_prob, 2),
@@ -39,7 +59,8 @@ def analyze():
             'price': latest['price'],
             'rsi': latest['rsi'],
             'trend': latest['trend'],
-            'sentiment': latest['sentiment']
+            'sentiment': latest['sentiment'],
+            'past_signal_eval': past_signal_eval
         }
     return {'signal': 'データ不足'}
 
