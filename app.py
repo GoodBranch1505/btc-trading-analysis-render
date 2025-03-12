@@ -10,7 +10,7 @@ data_store = []
 def analyze():
     data = request.json
     data_store.append(data)
-    df = pd.DataFrame(data_store[-288:])
+    df = pd.DataFrame(data_store[-288:]).drop_duplicates(subset=['timestamp'])  # 重複排除
 
     if len(df) >= 14:
         df['sma_short'] = df['price'].rolling(window=6).mean()
@@ -32,13 +32,12 @@ def analyze():
         signal = "買い" if buy_score > 0.7 else "売り" if sell_score > 0.7 else "ホールド"
         signal_prob = buy_score if signal == "買い" else sell_score if signal == "売り" else max(1 - buy_score, 1 - sell_score)
 
-        # 15分前の評価
-        past_signal_eval = "評価なし"
-        if len(df) >= 15:  # 15分前データが必要
-            past = df.iloc[-2]  # 15分前（仮に15分間隔と仮定）
+        past_signal_eval = "データ不足"
+        if len(df) >= 2:
+            past = df.iloc[-2]  # 直前のデータ
             past_time = int(past['timestamp'])
             curr_time = int(latest['timestamp'])
-            if curr_time - past_time >= 15 * 60:  # 15分差確認
+            if curr_time - past_time >= 14 * 60 and curr_time - past_time <= 16 * 60:  # 14〜16分
                 past_price = past['price']
                 curr_price = latest['price']
                 past_buy_score = stats.norm.cdf((past['trend'] / 1000000) + (70 - past['rsi']) / 100 + past['sentiment'])
